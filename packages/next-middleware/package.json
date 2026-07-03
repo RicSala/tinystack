@@ -1,0 +1,66 @@
+{
+  "name": "@tinystack/next-middleware",
+  "version": "0.0.0",
+  "description": "Composable, type-safe middleware chains for Next.js route handlers — middleware ordering enforced at compile time.",
+  "keywords": [
+    "nextjs",
+    "next",
+    "middleware",
+    "route-handler",
+    "app-router",
+    "typescript",
+    "zod"
+  ],
+  "license": "MIT",
+  "author": "Ric Sala",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/RicSala/tinystack.git",
+    "directory": "packages/next-middleware"
+  },
+  "homepage": "https://github.com/RicSala/tinystack/tree/main/packages/next-middleware#readme",
+  "bugs": "https://github.com/RicSala/tinystack/issues",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      }
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "check-package": "pnpm build && publint && pnpm pack --pack-destination .attw && attw .attw/*.tgz --profile esm-only && rm -rf .attw",
+    "format": "prettier --write \"**/*.{ts,json,md}\"",
+    "lint": "eslint",
+    "prepublishOnly": "pnpm typecheck && pnpm test && pnpm check-package",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "next": ">=14.0.0",
+    "zod": "^3.25.0 || ^4.0.0"
+  },
+  "devDependencies": {
+    "@arethetypeswrong/cli": "^0.18.2",
+    "@repo/eslint-config": "workspace:*",
+    "@repo/typescript-config": "workspace:*",
+    "@types/node": "catalog:",
+    "eslint": "catalog:",
+    "next": "catalog:",
+    "publint": "^0.3.12",
+    "tsup": "^8.5.0",
+    "typescript": "catalog:",
+    "vitest": "catalog:",
+    "zod": "catalog:"
+  }
+}
