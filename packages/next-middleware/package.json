@@ -1,6 +1,6 @@
 {
   "name": "@tinystack/next-middleware",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Composable, type-safe middleware chains for Next.js route handlers — middleware ordering enforced at compile time.",
   "keywords": [
     "nextjs",
