@@ -5,6 +5,8 @@ import { z } from "zod"
 import {
   createMiddlewareChain,
   withBody,
+  withErrorBoundary,
+  withHeaders,
   withParams,
   withQuery,
 } from "../src/index"
@@ -133,6 +135,104 @@ describe("withBody", () => {
 
     expect(response.status).toBe(400)
     expect(body.issues.length).toBeGreaterThan(0)
+  })
+})
+
+describe("withHeaders", () => {
+  const echoHeaders = (
+    schema: z.ZodType,
+    options?: Parameters<typeof withHeaders>[1]
+  ) =>
+    createMiddlewareChain()
+      .use(withHeaders(schema, options))
+      .handle(async (_req, ctx) => NextResponse.json({ headers: ctx.headers }))
+
+  it("parses valid headers into ctx.headers, matching case-insensitively", async () => {
+    const handler = echoHeaders(z.object({ "x-api-key": z.string() }))
+
+    const response = await handler(
+      request("http://localhost/api/test", {
+        headers: { "X-Api-Key": "secret" },
+      }),
+      {}
+    )
+
+    expect(await response.json()).toEqual({
+      headers: { "x-api-key": "secret" },
+    })
+  })
+
+  it("returns a 400 with issues when a required header is missing", async () => {
+    const handler = echoHeaders(z.object({ "x-api-key": z.string() }))
+
+    const response = await handler(request(), {})
+    const body = (await response.json()) as { error: string; issues: unknown[] }
+
+    expect(response.status).toBe(400)
+    expect(body.error).toBe("Invalid request headers")
+    expect(body.issues.length).toBeGreaterThan(0)
+  })
+
+  it("delegates invalid input to onInvalid when provided", async () => {
+    const onInvalid = vi.fn(() =>
+      Response.json({ custom: true }, { status: 401 })
+    )
+    const handler = echoHeaders(z.object({ "x-api-key": z.string() }), {
+      onInvalid,
+    })
+
+    const response = await handler(request(), {})
+
+    expect(response.status).toBe(401)
+    expect(onInvalid).toHaveBeenCalledOnce()
+  })
+})
+
+describe("withErrorBoundary", () => {
+  it("converts a throw from the handler into onError's response", async () => {
+    const handler = createMiddlewareChain()
+      .use(
+        withErrorBoundary((error) =>
+          Response.json({ error: String(error) }, { status: 500 })
+        )
+      )
+      .handle(async () => {
+        throw new Error("boom")
+      })
+
+    const response = await handler(request(), {})
+
+    expect(response.status).toBe(500)
+    expect(await response.json()).toEqual({ error: "Error: boom" })
+  })
+
+  it("catches throws from later middlewares (e.g. a throwing onInvalid)", async () => {
+    const handler = createMiddlewareChain()
+      .use(withErrorBoundary(() => Response.json({}, { status: 422 })))
+      .use(
+        withQuery(z.object({ page: z.coerce.number() }), {
+          onInvalid: () => {
+            throw new Error("validation failed")
+          },
+        })
+      )
+      .handle(async () => NextResponse.json({}))
+
+    const response = await handler(request(), {})
+
+    expect(response.status).toBe(422)
+  })
+
+  it("passes the response through untouched when nothing throws", async () => {
+    const onError = vi.fn(() => Response.json({}, { status: 500 }))
+    const handler = createMiddlewareChain()
+      .use(withErrorBoundary(onError))
+      .handle(async () => NextResponse.json({ ok: true }))
+
+    const response = await handler(request(), {})
+
+    expect(await response.json()).toEqual({ ok: true })
+    expect(onError).not.toHaveBeenCalled()
   })
 })
 

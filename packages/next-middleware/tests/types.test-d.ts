@@ -5,6 +5,8 @@ import { z } from "zod"
 import {
   createMiddlewareChain,
   createTypedMiddleware,
+  withErrorBoundary,
+  withHeaders,
   withParams,
   withQuery,
 } from "../src/index"
@@ -107,5 +109,33 @@ describe("zod middlewares type their ctx additions from the schema", () => {
         expectTypeOf(ctx.params.id).toEqualTypeOf<string>()
         return NextResponse.json({})
       })
+  })
+
+  it("withHeaders adds typed headers", () => {
+    createMiddlewareChain()
+      .use(withHeaders(z.object({ "x-api-key": z.string() })))
+      .handle(async (_req, ctx) => {
+        expectTypeOf(ctx.headers["x-api-key"]).toEqualTypeOf<string>()
+        return NextResponse.json({})
+      })
+  })
+})
+
+describe("withErrorBoundary composes without affecting ctx", () => {
+  it("adds nothing and does not poison later ctx types", () => {
+    createMiddlewareChain()
+      .use(withErrorBoundary(() => NextResponse.json({}, { status: 500 })))
+      .use(withUser)
+      .handle(async (_req, ctx) => {
+        expectTypeOf(ctx.user).toEqualTypeOf<string>()
+        return NextResponse.json({})
+      })
+  })
+
+  it("onError receives the thrown value as unknown", () => {
+    withErrorBoundary((error, _req) => {
+      expectTypeOf(error).toEqualTypeOf<unknown>()
+      return NextResponse.json({}, { status: 500 })
+    })
   })
 })

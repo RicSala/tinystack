@@ -81,20 +81,23 @@ const withOrg = createTypedMiddleware<{ org: Org }, { user: User }>(
 ```
 
 Short-circuit by returning a `Response` without calling `next()`. Anything a
-middleware throws propagates out of the chain — add your own error-boundary
-middleware as the first `use()` if you want throws converted to responses.
+middleware throws propagates out of the chain — wrap it with
+[`withErrorBoundary`](#error-boundary) if you want throws converted to
+responses.
 
 ## Included middlewares
 
-All three validate with a zod schema, add the typed result to ctx, and respond
-with a JSON 400 (including the zod issues) on invalid input. Override that via
-`onInvalid` — return your own `Response` or throw into your error boundary.
+The validation middlewares parse one request surface with a zod schema, add
+the typed result to ctx, and respond with a JSON 400 (including the zod
+issues) on invalid input. Override that via `onInvalid` — return your own
+`Response` or throw into your error boundary.
 
-| Middleware                  | Adds         | Notes                                                                               |
-| --------------------------- | ------------ | ----------------------------------------------------------------------------------- |
-| `withQuery(schema, opts?)`  | `ctx.query`  | Empty values become `undefined`; repeated keys become arrays                        |
-| `withBody(schema, opts?)`   | `ctx.body`   | Malformed JSON fails validation like any other bad input; consumes the request body |
-| `withParams(schema, opts?)` | `ctx.params` | Awaits the Next.js 15+ params promise before validating                             |
+| Middleware                   | Adds          | Notes                                                                               |
+| ---------------------------- | ------------- | ----------------------------------------------------------------------------------- |
+| `withQuery(schema, opts?)`   | `ctx.query`   | Empty values become `undefined`; repeated keys become arrays                        |
+| `withBody(schema, opts?)`    | `ctx.body`    | Malformed JSON fails validation like any other bad input; consumes the request body |
+| `withParams(schema, opts?)`  | `ctx.params`  | Awaits the Next.js 15+ params promise before validating                             |
+| `withHeaders(schema, opts?)` | `ctx.headers` | Header names are lowercased; write schema keys in lowercase                         |
 
 ```ts
 export const POST = createMiddlewareChain()
@@ -104,6 +107,27 @@ export const POST = createMiddlewareChain()
     Response.json(await rename(ctx.params.projectId, ctx.body.name))
   )
 ```
+
+## Error boundary
+
+`withErrorBoundary(onError)` catches anything thrown by later middlewares or
+the handler and converts it to a response. Add it as the first `use()` so it
+wraps the whole chain; the error-to-response mapping is entirely yours:
+
+```ts
+export const GET = createMiddlewareChain()
+  .use(
+    withErrorBoundary((error, req) => {
+      logger.error("unhandled", { error, path: req.nextUrl.pathname })
+      return Response.json({ error: "Internal error" }, { status: 500 })
+    })
+  )
+  .use(withAuth)
+  .handle(async (req, ctx) => Response.json(await riskyThing(ctx.user)))
+```
+
+It adds nothing to ctx, so it composes anywhere in the chain — but it only
+sees throws from middlewares *after* it.
 
 ## Chain options
 
